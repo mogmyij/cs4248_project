@@ -1,0 +1,10 @@
+[project]
+name = "cs4248-project"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "openai>=2.28.0",
+    "tqdm>=4.67.3",
+]
