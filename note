@@ -1,0 +1,112 @@
+qwen SFT
+
+ Using device: cuda
+Loading weights: 100% 290/290 [00:00<00:00, 430.54it/s, Materializing param=model.norm.weight]  Epoch 1 | Step 50/1499 | loss 5.0481 | lr 3.58e-06
+  Epoch 1 | Step 100/1499 | loss 4.8185 | lr 7.46e-06
+  Epoch 1 | Step 150/1499 | loss 4.5397 | lr 1.10e-05
+  Epoch 1 | Step 200/1499 | loss 4.3064 | lr 1.49e-05
+  Epoch 1 | Step 250/1499 | loss 4.1015 | lr 1.85e-05
+  Epoch 1 | Step 300/1499 | loss 3.9447 | lr 1.98e-05
+  Epoch 1 | Step 350/1499 | loss 3.8164 | lr 1.96e-05
+  Epoch 1 | Step 400/1499 | loss 3.6922 | lr 1.94e-05
+  Epoch 1 | Step 450/1499 | loss 3.5917 | lr 1.91e-05
+  Epoch 1 | Step 500/1499 | loss 3.5087 | lr 1.89e-05
+  Epoch 1 | Step 550/1499 | loss 3.4315 | lr 1.87e-05
+  Epoch 1 | Step 600/1499 | loss 3.3611 | lr 1.84e-05
+  Epoch 1 | Step 650/1499 | loss 3.3050 | lr 1.82e-05
+  Epoch 1 | Step 700/1499 | loss 3.2573 | lr 1.80e-05
+  Epoch 1 | Step 750/1499 | loss 3.2153 | lr 1.77e-05
+  Epoch 1 | Step 800/1499 | loss 3.1732 | lr 1.75e-05
+  Epoch 1 | Step 850/1499 | loss 3.1387 | lr 1.73e-05
+  Epoch 1 | Step 900/1499 | loss 3.1062 | lr 1.70e-05
+  Epoch 1 | Step 950/1499 | loss 3.0785 | lr 1.68e-05
+  Epoch 1 | Step 1000/1499 | loss 3.0503 | lr 1.65e-05
+  Epoch 1 | Step 1050/1499 | loss 3.0251 | lr 1.63e-05
+  Epoch 1 | Step 1100/1499 | loss 3.0002 | lr 1.61e-05
+  Epoch 1 | Step 1150/1499 | loss 2.9789 | lr 1.58e-05
+  Epoch 1 | Step 1200/1499 | loss 2.9602 | lr 1.56e-05
+  Epoch 1 | Step 1250/1499 | loss 2.9400 | lr 1.54e-05
+  Epoch 1 | Step 1300/1499 | loss 2.9231 | lr 1.51e-05
+  Epoch 1 | Step 1350/1499 | loss 2.9044 | lr 1.49e-05
+  Epoch 1 | Step 1400/1499 | loss 2.8891 | lr 1.46e-05
+  Epoch 1 | Step 1450/1499 | loss 2.8753 | lr 1.44e-05
+
+Epoch 1 complete | train loss: 2.8624 | val loss: 2.4621
+
+Writing model shards: 100% 1/1 [00:11<00:00, 11.79s/it]  -> New best checkpoint saved (val loss 2.4621)
+
+  Epoch 2 | Step 50/1499 | loss 2.2045 | lr 1.40e-05
+  Epoch 2 | Step 100/1499 | loss 2.1957 | lr 1.37e-05
+  Epoch 2 | Step 150/1499 | loss 2.2022 | lr 1.35e-05
+  Epoch 2 | Step 200/1499 | loss 2.1991 | lr 1.32e-05
+  Epoch 2 | Step 250/1499 | loss 2.2002 | lr 1.30e-05
+  Epoch 2 | Step 300/1499 | loss 2.1988 | lr 1.28e-05
+  Epoch 2 | Step 350/1499 | loss 2.1981 | lr 1.25e-05
+  Epoch 2 | Step 400/1499 | loss 2.1941 | lr 1.23e-05
+  Epoch 2 | Step 450/1499 | loss 2.1943 | lr 1.21e-05
+  Epoch 2 | Step 500/1499 | loss 2.1902 | lr 1.18e-05
+  Epoch 2 | Step 550/1499 | loss 2.1902 | lr 1.16e-05
+  Epoch 2 | Step 600/1499 | loss 2.1929 | lr 1.13e-05
+  Epoch 2 | Step 650/1499 | loss 2.1911 | lr 1.11e-05
+  Epoch 2 | Step 700/1499 | loss 2.1885 | lr 1.09e-05
+  Epoch 2 | Step 750/1499 | loss 2.1903 | lr 1.06e-05
+  Epoch 2 | Step 800/1499 | loss 2.1898 | lr 1.04e-05
+  Epoch 2 | Step 850/1499 | loss 2.1878 | lr 1.02e-05
+  Epoch 2 | Step 900/1499 | loss 2.1887 | lr 9.91e-06
+  Epoch 2 | Step 950/1499 | loss 2.1876 | lr 9.69e-06
+  Epoch 2 | Step 1000/1499 | loss 2.1875 | lr 9.44e-06
+  Epoch 2 | Step 1050/1499 | loss 2.1859 | lr 9.21e-06
+  Epoch 2 | Step 1100/1499 | loss 2.1853 | lr 8.97e-06
+  Epoch 2 | Step 1150/1499 | loss 2.1846 | lr 8.74e-06
+  Epoch 2 | Step 1200/1499 | loss 2.1832 | lr 8.49e-06
+  Epoch 2 | Step 1250/1499 | loss 2.1838 | lr 8.27e-06
+  Epoch 2 | Step 1300/1499 | loss 2.1814 | lr 8.02e-06
+  Epoch 2 | Step 1350/1499 | loss 2.1814 | lr 7.79e-06
+  Epoch 2 | Step 1400/1499 | loss 2.1810 | lr 7.55e-06
+  Epoch 2 | Step 1450/1499 | loss 2.1796 | lr 7.32e-06
+
+Epoch 2 complete | train loss: 2.1780 | val loss: 2.4211
+
+Writing model shards: 100% 1/1 [00:21<00:00, 21.43s/it]  -> New best checkpoint saved (val loss 2.4211)
+
+  Epoch 3 | Step 50/1499 | loss 2.0644 | lr 6.86e-06
+  Epoch 3 | Step 100/1499 | loss 2.0428 | lr 6.62e-06
+  Epoch 3 | Step 150/1499 | loss 2.0393 | lr 6.39e-06
+  Epoch 3 | Step 200/1499 | loss 2.0316 | lr 6.14e-06
+  Epoch 3 | Step 250/1499 | loss 2.0345 | lr 5.91e-06
+  Epoch 3 | Step 300/1499 | loss 2.0366 | lr 5.67e-06
+  Epoch 3 | Step 350/1499 | loss 2.0345 | lr 5.44e-06
+  Epoch 3 | Step 400/1499 | loss 2.0357 | lr 5.19e-06
+  Epoch 3 | Step 450/1499 | loss 2.0346 | lr 4.97e-06
+  Epoch 3 | Step 500/1499 | loss 2.0393 | lr 4.72e-06
+  Epoch 3 | Step 550/1499 | loss 2.0370 | lr 4.49e-06
+  Epoch 3 | Step 600/1499 | loss 2.0361 | lr 4.25e-06
+  Epoch 3 | Step 650/1499 | loss 2.0345 | lr 4.02e-06
+  Epoch 3 | Step 700/1499 | loss 2.0351 | lr 3.77e-06
+  Epoch 3 | Step 750/1499 | loss 2.0313 | lr 3.55e-06
+  Epoch 3 | Step 800/1499 | loss 2.0332 | lr 3.30e-06
+  Epoch 3 | Step 850/1499 | loss 2.0345 | lr 3.07e-06
+  Epoch 3 | Step 900/1499 | loss 2.0349 | lr 2.82e-06
+  Epoch 3 | Step 950/1499 | loss 2.0334 | lr 2.60e-06
+  Epoch 3 | Step 1000/1499 | loss 2.0300 | lr 2.35e-06
+  Epoch 3 | Step 1050/1499 | loss 2.0322 | lr 2.12e-06
+  Epoch 3 | Step 1100/1499 | loss 2.0333 | lr 1.88e-06
+  Epoch 3 | Step 1150/1499 | loss 2.0321 | lr 1.65e-06
+  Epoch 3 | Step 1200/1499 | loss 2.0341 | lr 1.40e-06
+  Epoch 3 | Step 1250/1499 | loss 2.0342 | lr 1.18e-06
+  Epoch 3 | Step 1300/1499 | loss 2.0335 | lr 9.29e-07
+  Epoch 3 | Step 1350/1499 | loss 2.0324 | lr 7.01e-07
+  Epoch 3 | Step 1400/1499 | loss 2.0325 | lr 4.55e-07
+  Epoch 3 | Step 1450/1499 | loss 2.0321 | lr 2.27e-07
+
+Epoch 3 complete | train loss: 2.0334 | val loss: 2.4316
+
+Training complete.
+
+Test headline: Local man wins award for community service
+Loading weights:   0%|          | 0/290 [00:00<?, ?it/s]Sarcastic version: Local Man Receives Commendation For Doing Exactly What He Was Told To Do
+
+Man Who Spent 10 Years Doing Nothing Finally Gets Recognition For Doing Nothing
+obsługsystem
+Man Achieves Peak Human Potential By Not Doing Thing He Was Taught To Do For 8 Years
+
