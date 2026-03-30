@@ -3,11 +3,24 @@ name = "cs4248-project"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
-requires-python = ">=3.14"
+requires-python = ">=3.12"
 dependencies = [
+    "accelerate>=1.13.0",
+    "datasets>=4.8.4",
     "google-genai>=1.10.0",
     "openai>=2.28.0",
     "pandas>=3.0.1",
     "python-dotenv>=1.2.2",
+    "scikit-learn>=1.8.0",
+    "torch==2.10.0",
     "tqdm>=4.67.3",
+    "transformers>=5.4.0",
 ]
+
+[[tool.uv.index]]
+name = "pytorch-cu128"
+url = "https://download.pytorch.org/whl/cu128"
+explicit = true
+
+[tool.uv.sources]
+torch = { index = "pytorch-cu128" }
