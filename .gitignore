@@ -2,3 +2,8 @@
 qwen
 temp
 checkpoint
+.hf_cache
+logs
+qwen_grpo_rl-ed
+qwen_sarcasm_best
+wandb

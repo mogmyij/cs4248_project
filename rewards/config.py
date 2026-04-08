@@ -47,5 +47,15 @@ class RewardConfig:
     special_char_threshold: float = 0.3
     uppercase_threshold: float = 0.5
 
+    # --- Area Man / shortcut-template penalty ---
+    area_man_patterns: list = field(default_factory=lambda: [
+        r"\barea man\b",
+        r"\blocal\s+man\b",
+    ])
+    area_man_base_penalty: float = 1.0
+    area_man_prefix_boost: float = 0.5
+    area_man_max_penalty: float = 2.0
+    area_man_prefix_window: int = 24
+
     # --- Device ---
     device: str = field(default_factory=lambda: "cuda" if torch.cuda.is_available() else "cpu")

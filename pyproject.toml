@@ -15,10 +15,12 @@ dependencies = [
     "python-dotenv>=1.2.2",
     "scikit-learn>=1.8.0",
     "sentence-transformers",
+    "spacy",
     "torch==2.10.0",
     "tqdm>=4.67.3",
     "transformers>=5.4.0",
     "trl",
+    "wandb",
 ]
 
 [[tool.uv.index]]

@@ -1,17 +1,15 @@
 """
 R_content(x, y): Content preservation reward.
 
-Combines three complementary methods to assess whether the generated
+Combines two complementary methods to assess whether the generated
 sarcastic headline preserves the factual content of the original:
-  1. BERTScore  – token-level soft matching (robust to style shifts)
-  2. NLI Entailment – bidirectional entailment probability
-  3. Entity Overlap – named-entity F1 between original and generated
+  1. NLI Entailment – bidirectional entailment probability
+  2. Entity Overlap – named-entity F1 between original and generated
 """
 
-from typing import List, Tuple, Union
+from typing import List, Union
 
 import torch
-from bert_score import BERTScorer
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
 import spacy
 
@@ -21,16 +19,8 @@ from .config import RewardConfig
 class ContentReward:
     def __init__(self, config: RewardConfig):
         self.device = torch.device(config.device)
-        self.w_bert = config.content_bertscore_weight
         self.w_nli = config.content_nli_weight
         self.w_entity = config.content_entity_weight
-
-        # BERTScore
-        self.bert_scorer = BERTScorer(
-            model_type=config.bertscore_model_type,
-            device=config.device,
-            rescale_with_baseline=False,
-        )
 
         # NLI cross-encoder
         self.nli_tokenizer = AutoTokenizer.from_pretrained(config.nli_model_name)
@@ -48,13 +38,6 @@ class ContentReward:
     # ------------------------------------------------------------------
     # Sub-scores
     # ------------------------------------------------------------------
-
-    def _bertscore(
-        self, originals: List[str], generateds: List[str]
-    ) -> List[float]:
-        """Token-level BERTScore F1."""
-        _, _, f1 = self.bert_scorer.score(generateds, originals)
-        return f1.tolist()
 
     @torch.no_grad()
     def _nli_entailment(
@@ -115,13 +98,13 @@ class ContentReward:
         if single:
             originals, generateds = [originals], [generateds]
 
-        bert_scores = self._bertscore(originals, generateds)
         nli_scores = self._nli_entailment(originals, generateds)
         entity_scores = self._entity_overlap(originals, generateds)
 
         combined = [
-            self.w_bert * b + self.w_nli * n + self.w_entity * e
-            for b, n, e in zip(bert_scores, nli_scores, entity_scores)
+            self.w_nli * n + self.w_entity * e
+            for n, e in zip(nli_scores, entity_scores)
         ]
 
         return combined[0] if single else combined
+

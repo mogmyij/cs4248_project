@@ -4,7 +4,7 @@
 #SBATCH --gres=gpu:a100-40:1
 #SBATCH --cpus-per-task=4          # 2 DataLoader workers x 2 for headroom
 #SBATCH --mem=32G                  # model + optimizer states + data
-#SBATCH --time=1-00:00:00          # normal partition max; switch to gpu-long for more
+#SBATCH --time=3-00:00:00          # normal partition max; switch to gpu-long for more
 #SBATCH --output=logs/%x_%j.out
 #SBATCH --error=logs/%x_%j.err
 #SBATCH --mail-type=END,FAIL       # remove if you don't want emails

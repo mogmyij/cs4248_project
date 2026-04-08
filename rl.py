@@ -15,6 +15,12 @@ from sentence_transformers import SentenceTransformer
 from peft import LoraConfig
 from trl import GRPOConfig, GRPOTrainer
 
+from rewards.degeneration_reward import DegenerationReward
+from rewards.content_reward import ContentReward
+from rewards.config import RewardConfig
+from rewards.diversity_reward import DiversityReward
+from rewards.template_hack_reward import AreaManReward
+
 MODEL_PATH = "./qwen_sarcasm_best" 
 DATASET_PATH = "./dataset/rl_headlines_200k.jsonl"
 
@@ -24,6 +30,8 @@ CONTEXT_MODEL_ID = "all-mpnet-base-v2"
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 debug_print_count = 0
+
+NUM_GENERATIONS = 8
 
 EVAL_EVERY_STEPS = 100
 EVAL_HEADLINES = [
@@ -44,6 +52,8 @@ EVAL_HEADLINES = [
         "Your hand feels tingly while using a charging phone? What causes it and is it still safe?",
         ]
 
+
+
 # --- Initialize Reward Models Globally ---
 # This prevents reloading them for every batch
 print("Loading Reward Models...")
@@ -52,6 +62,19 @@ sarcasm_model = AutoModelForSequenceClassification.from_pretrained(SARCASM_MODEL
 sarcasm_model.eval()
 
 context_model = SentenceTransformer(CONTEXT_MODEL_ID, device=device)
+
+config = RewardConfig()
+config.degen_repetition_weight = 0.7
+config.degen_nonsense_weight = 0.3
+config.ngram_sizes = [2,3]
+config.special_char_threshold =  0.3
+config.uppercase_threshold = 0.7
+dg = DegenerationReward(config)
+cr = ContentReward(config)
+dr = DiversityReward(NUM_GENERATIONS)
+amr = AreaManReward(config)
+
+
 # --- Reward Functions ---
 # GRPOTrainer expects functions that take 'completions' (list of generated strings)
 # and kwargs containing dataset columns (like 'original_text').
@@ -132,17 +155,28 @@ def context_reward_func(prompts, completions, original_text, **kwargs):
     torch.cuda.empty_cache()
     return rewards
 
-def combined_multiplier_func(prompts, completions, **kwargs):
+def content_reward_func(completions, original_text, **kwargs):
+    """Reward for content preservation via NLI entailment and entity overlap."""
+    clean = [
+        c.replace("<|im_end|>", "").replace("<|endoftext|>", "").strip().split('\n')[0].strip()
+        for c in completions
+    ]
+    return cr.score(original_text, clean)
 
-    sarcasm_scores = sarcasm_reward_func(completions, **kwargs)
-    context_scores = context_reward_func(prompts, completions, **kwargs)
+def degeneration_reward_func(completions, **kwargs):
+    """Penalty for repetitive or nonsensical output (returned as negative reward)."""
+    clean = [
+        c.replace("<|im_end|>", "").replace("<|endoftext|>", "").strip().split('\n')[0].strip()
+        for c in completions
+    ]
+    scores = dg.score(clean)
+    return [-s for s in scores]
 
-    final_rewards = []
-    for sarc, ctx in zip(sarcasm_scores, context_scores):
-        weighted_score = (0.7 * sarc) + (0.3 * ctx)
-        final_rewards.append(weighted_score)
+def diversity_reward_func(completions, **kwargs):
+    """Penalty for low intra-group diversity across GRPO generations (returned as negative reward)."""
+    penalties = dr.score(completions)
+    return [-p for p in penalties]
 
-    return final_rewards
 
 def build_dataset():
     dataset = load_dataset("json", data_files=DATASET_PATH, split="train")
@@ -164,13 +198,18 @@ def build_dataset():
     dataset = dataset.map(format_data, batched=False)
     return dataset
 
+def area_man_reward_func(completions, **kwargs):
+    """Penalty for shortcut-template outputs such as 'Area Man' (returned as negative reward)."""
+    penalties = amr.score(completions)
+    return [-p for p in penalties]
+
 class QualitativeEvalCallback(TrainerCallback):
     def __init__(self, model, tokenizer, headlines, eval_every_steps=EVAL_EVERY_STEPS):
         self.model = model
         self.tokenizer = tokenizer
         self.headlines = headlines
         self.eval_every_steps = eval_every_steps
-        self.eval_data = []  # rows of [step, original, generated]
+        self.eval_data = []  # rows of [step, original, generated, sarcasm, context]
 
     def _build_prompt(self, headline):
         return (
@@ -189,9 +228,11 @@ class QualitativeEvalCallback(TrainerCallback):
         self.model.eval()
         results = []
 
+        prompts = []
         with torch.no_grad():
             for headline in self.headlines:
                 prompt = self._build_prompt(headline)
+                prompts.append(prompt)
                 inputs = self.tokenizer(prompt, return_tensors="pt").to(device)
                 outputs = self.model.generate(
                         **inputs,
@@ -205,25 +246,31 @@ class QualitativeEvalCallback(TrainerCallback):
                         ).strip().split("\n")[0].strip()
                 results.append([headline, generated])
 
+        originals = [r[0] for r in results]
+        generated_texts = [r[1] for r in results]
+        sarcasm_scores = sarcasm_reward_func(generated_texts)
+        context_scores = context_reward_func(prompts, generated_texts, originals)
+        content_scores = content_reward_func(generated_texts, originals)
+
         print(f"\n{'='*60}")
         print(f"Qualitative Eval — Step {state.global_step}")
         print(f"{'='*60}")
-        for orig, sarc in results:
+        for (orig, gen), sarc, ctx in zip(results, sarcasm_scores, context_scores):
             print(f"  IN:  {orig}")
-            print(f"  OUT: {sarc}\n")
+            print(f"  OUT: {gen}")
+            print(f"  SCORES — sarcasm: {sarc:.3f}, context: {ctx:.3f}\n")
 
-        for orig, sarc in results:
-            self.eval_data.append([state.global_step, orig, sarc])
+        for (orig, gen), sarc, ctx in zip(results, sarcasm_scores, context_scores):
+            self.eval_data.append([state.global_step, orig, gen, sarc, ctx])
 
         self.model.train()
 
     def on_train_end(self, args: GRPOConfig, state: TrainerState, control: TrainerControl, **kwargs):
         if wandb.run is not None and self.eval_data:
-            table = wandb.Table(columns=["Step", "Original", "Generated"], data=self.eval_data)
+            table = wandb.Table(columns=["Step", "Original", "Generated", "Sarcasm", "Context"], data=self.eval_data)
             wandb.log({"qualitative_eval": table})
         elif wandb.run is None:
             print("WARNING: wandb.run is None, table not logged")
-
 
 
 # --- Main Training Loop ---
@@ -265,10 +312,10 @@ def main():
     # GRPO specific parameters
     training_args = GRPOConfig(
             output_dir="./qwen_grpo_rl-ed",
-            learning_rate=2e-5,
+            learning_rate=3e-6,
             per_device_train_batch_size=2,  # Number of distinct prompts per step
-            gradient_accumulation_steps=2,
-            num_generations=4,              # G in GRPO: Group size for relative advantage
+            gradient_accumulation_steps=4,
+            num_generations=NUM_GENERATIONS,              # G in GRPO: Group size for relative advantage
             #max_prompt_length=128,
             max_completion_length=128,
             temperature=0.7,
@@ -277,19 +324,21 @@ def main():
             logging_steps=50,
             #max_steps=50000, 
             num_train_epochs = 1,
-            beta = 0.1,
+            beta = 0.01,
             #report_to="none",
             report_to="wandb",
-            save_steps = 10000,
+            save_steps = 2500,
             save_total_limit = 2,
             run_name="qwen-grpo-sarcasm-rl",
+            reward_weights=[1.0, 0.5, 0.5, 2.0, 2.0,2.0], 
+            multi_objective_aggregation="normalize_then_sum",
             )
 
     print("Initializing GRPO Trainer...")
     trainer = GRPOTrainer(
             model=model,
             #reward_funcs=[combined_multiplier_func],
-            reward_funcs=[sarcasm_reward_func, context_reward_func],
+            reward_funcs=[sarcasm_reward_func, context_reward_func, content_reward_func, degeneration_reward_func, diversity_reward_func, area_man_reward_func],
             args=training_args,
             train_dataset=dataset,
             peft_config=peft_config,
