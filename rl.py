@@ -33,6 +33,8 @@ debug_print_count = 0
 
 NUM_GENERATIONS = 8
 
+SARCASM_GATE_THRESHOLD = 0.7
+
 EVAL_EVERY_STEPS = 100
 EVAL_HEADLINES = [
         "CNA Explains: How the Iran war might reshape Asia’s energy playbook",
@@ -109,8 +111,10 @@ def sarcasm_reward_func(completions, **kwargs):
     torch.cuda.empty_cache()
     return rewards
 
-def context_reward_func(prompts, completions, original_text, **kwargs):
+def gated_context_reward_func(prompts, completions, original_text, **kwargs):
     global debug_print_count
+
+
     """Reward based on semantic similarity to the original non-sarcastic headline."""
     #original_headlines = kwargs.get("original_text", [])
 
@@ -153,15 +157,31 @@ def context_reward_func(prompts, completions, original_text, **kwargs):
     #debug_print_count += 1
 
     torch.cuda.empty_cache()
+
+    """implement reward threshold"""
+    sarc_score = sarcasm_reward_func(completions)
+    for idx, score in enumerate(sarc_score):
+        rewards[idx] = 0 if score < SARCASM_GATE_THRESHOLD else rewards[idx]
+
     return rewards
 
-def content_reward_func(completions, original_text, **kwargs):
+def gated_content_reward_func(completions, original_text, **kwargs):
+    # check if it fulfils the sarcasm score threshold
+
     """Reward for content preservation via NLI entailment and entity overlap."""
     clean = [
         c.replace("<|im_end|>", "").replace("<|endoftext|>", "").strip().split('\n')[0].strip()
         for c in completions
     ]
-    return cr.score(original_text, clean)
+
+    rewards = cr.score(original_text, clean)
+
+    """implement reward threshold"""
+    sarc_score = sarcasm_reward_func(completions)
+    for idx, score in enumerate(sarc_score):
+        rewards[idx] = 0 if score < SARCASM_GATE_THRESHOLD else rewards[idx]
+
+    return rewards
 
 def degeneration_reward_func(completions, **kwargs):
     """Penalty for repetitive or nonsensical output (returned as negative reward)."""
@@ -175,6 +195,12 @@ def degeneration_reward_func(completions, **kwargs):
 def diversity_reward_func(completions, **kwargs):
     """Penalty for low intra-group diversity across GRPO generations (returned as negative reward)."""
     penalties = dr.score(completions)
+    return [-p for p in penalties]
+
+
+def area_man_reward_func(completions, **kwargs):
+    """Penalty for shortcut-template outputs such as 'Area Man' (returned as negative reward)."""
+    penalties = amr.score(completions)
     return [-p for p in penalties]
 
 
@@ -197,12 +223,6 @@ def build_dataset():
 
     dataset = dataset.map(format_data, batched=False)
     return dataset
-
-def area_man_reward_func(completions, **kwargs):
-    """Penalty for shortcut-template outputs such as 'Area Man' (returned as negative reward)."""
-    penalties = amr.score(completions)
-    return [-p for p in penalties]
-
 class QualitativeEvalCallback(TrainerCallback):
     def __init__(self, model, tokenizer, headlines, eval_every_steps=EVAL_EVERY_STEPS):
         self.model = model
@@ -249,8 +269,8 @@ class QualitativeEvalCallback(TrainerCallback):
         originals = [r[0] for r in results]
         generated_texts = [r[1] for r in results]
         sarcasm_scores = sarcasm_reward_func(generated_texts)
-        context_scores = context_reward_func(prompts, generated_texts, originals)
-        content_scores = content_reward_func(generated_texts, originals)
+        context_scores = gated_context_reward_func(prompts, generated_texts, originals)
+        content_scores = gated_content_reward_func(generated_texts, originals)
 
         print(f"\n{'='*60}")
         print(f"Qualitative Eval — Step {state.global_step}")
@@ -293,17 +313,17 @@ def main():
     print("Loading Base Model...")
     model = AutoModelForCausalLM.from_pretrained(
             MODEL_PATH,
-            quantization_config=quantization_config,
+            #quantization_config=quantization_config,
             device_map="auto",
             attn_implementation="sdpa"
             )
 
     # PEFT Config for LoRA. GRPOTrainer automatically handles the reference model 
     peft_config = LoraConfig(
-            r=16,
+            r=1,
             lora_alpha=32,
-            target_modules=["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"],
-            lora_dropout=0.05,
+            target_modules="all-linear",
+            lora_dropout=0,
             task_type="CAUSAL_LM",
             )
 
@@ -312,8 +332,8 @@ def main():
     # GRPO specific parameters
     training_args = GRPOConfig(
             output_dir="./qwen_grpo_rl-ed",
-            learning_rate=3e-6,
-            per_device_train_batch_size=2,  # Number of distinct prompts per step
+            learning_rate=3e-5,
+            per_device_train_batch_size=4,  # Number of distinct prompts per step
             gradient_accumulation_steps=4,
             num_generations=NUM_GENERATIONS,              # G in GRPO: Group size for relative advantage
             #max_prompt_length=128,
@@ -330,7 +350,7 @@ def main():
             save_steps = 2500,
             save_total_limit = 2,
             run_name="qwen-grpo-sarcasm-rl",
-            reward_weights=[1.0, 0.5, 0.5, 2.0, 2.0,2.0], 
+            reward_weights=[1.0,1.0,1.0,1.0,1.0,1.0], 
             multi_objective_aggregation="normalize_then_sum",
             )
 
@@ -338,7 +358,7 @@ def main():
     trainer = GRPOTrainer(
             model=model,
             #reward_funcs=[combined_multiplier_func],
-            reward_funcs=[sarcasm_reward_func, context_reward_func, content_reward_func, degeneration_reward_func, diversity_reward_func, area_man_reward_func],
+            reward_funcs=[sarcasm_reward_func, gated_context_reward_func, gated_content_reward_func, degeneration_reward_func, diversity_reward_func, area_man_reward_func],
             args=training_args,
             train_dataset=dataset,
             peft_config=peft_config,
@@ -354,4 +374,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
