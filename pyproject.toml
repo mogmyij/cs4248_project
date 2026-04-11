@@ -8,6 +8,7 @@ dependencies = [
     "accelerate>=1.13.0",
     "bitsandbytes",
     "datasets>=4.8.4",
+    "emoji==0.6.0",
     "google-genai>=1.10.0",
     "openai>=2.28.0",
     "pandas>=3.0.1",

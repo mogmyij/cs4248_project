@@ -20,6 +20,8 @@ from rewards.content_reward import ContentReward
 from rewards.config import RewardConfig
 from rewards.diversity_reward import DiversityReward
 from rewards.template_hack_reward import AreaManReward
+from rewards.freq_reward import FrequencyPenalty
+from rewards.style_reward import StyleReward
 
 MODEL_PATH = "./qwen_sarcasm_best" 
 DATASET_PATH = "./dataset/rl_headlines_200k.jsonl"
@@ -31,15 +33,15 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 debug_print_count = 0
 
-NUM_GENERATIONS = 8
+NUM_GENERATIONS = 16
 
 SARCASM_GATE_THRESHOLD = 0.7
 
 EVAL_EVERY_STEPS = 100
 EVAL_HEADLINES = [
-        "CNA Explains: How the Iran war might reshape Asia’s energy playbook",
+        "CNA Explains: How the Iran war might reshape Asia's energy playbook",
         "Iran downs two US warplanes as both sides race to find missing crew member",
-        "OpenAI’s Top Executive Fidji Simo to Take Medical Leave From Company",
+        "OpenAI's Top Executive Fidji Simo to Take Medical Leave From Company",
         "The New Jobs Being Created by AI",
         "Faced with new energy shock, Europe asks if reviving nuclear is the answer",
         "Artemis II crew now halfway to Moon as they take 'spectacular' image of Earth",
@@ -50,7 +52,7 @@ EVAL_HEADLINES = [
         "What Happened to the Fun Parts of Work?",
         "Dvalishvili refuses surgery despite nose breaks",
         "What can F1's bosses do to help keep Verstappen in the sport?",
-        "NCT’s Mark to leave K-pop group, SM Entertainment after 10 years",
+        "NCT's Mark to leave K-pop group, SM Entertainment after 10 years",
         "Your hand feels tingly while using a charging phone? What causes it and is it still safe?",
         ]
 
@@ -71,10 +73,20 @@ config.degen_nonsense_weight = 0.3
 config.ngram_sizes = [2,3]
 config.special_char_threshold =  0.3
 config.uppercase_threshold = 0.7
+
+# Frequency penalty config — tune these as needed
+config.freq_window_size = 1000       # remember the last 1000 generations
+config.freq_ngram_range = (1, 3)     # track unigrams, bigrams, trigrams
+config.freq_prefix_token_count = 6   # only look at the first 6 tokens
+config.freq_penalty_scale = 1.5      # max penalty magnitude
+config.freq_penalty_warmup = 64      # no penalty until 64 samples seen
+
 dg = DegenerationReward(config)
 cr = ContentReward(config)
 dr = DiversityReward(NUM_GENERATIONS)
 amr = AreaManReward(config)
+fp = FrequencyPenalty(config)
+sr = StyleReward()
 
 
 # --- Reward Functions ---
@@ -102,12 +114,6 @@ def sarcasm_reward_func(completions, **kwargs):
             batch_rewards = probs[:, 1].cpu().tolist()
             rewards.extend(batch_rewards)
 
-    #if (debug_print_count % 10 == 0 ):
-    #    print("---------sarc rewards--------\n")
-    #    print(f"reward: {rewards[0]}\n")
-    #    print("------------------------------\n")
-
-
     torch.cuda.empty_cache()
     return rewards
 
@@ -116,21 +122,13 @@ def gated_context_reward_func(prompts, completions, original_text, **kwargs):
 
 
     """Reward based on semantic similarity to the original non-sarcastic headline."""
-    #original_headlines = kwargs.get("original_text", [])
-
     rewards = []
     clean_completions = []
     for c in completions:
         text = c.replace("<|im_end|>", "").replace("<|endoftext|>", "").strip()
-        first_line = text.split('\n')[0].strip() # <--- THE MAGIC FIX
+        first_line = text.split('\n')[0].strip()
         clean_completions.append(first_line)
 
-    #if not original_headlines or len(original_headlines) == 0:
-    #    original_headlines = []
-    #    for p in prompts:
-    #        # Slices out the text between our instruction and the stop token
-    #        extracted_text = p.split("Rewrite this headline: ")[-1].split("<|im_end|>")[0].strip()
-    #        original_headlines.append(extracted_text)
     original_headlines = original_text
 
 
@@ -145,16 +143,6 @@ def gated_context_reward_func(prompts, completions, original_text, **kwargs):
             sim = F.cosine_similarity(emb_comp, emb_orig)
             batch_rewards = sim.cpu().tolist()
             rewards.extend(batch_rewards)
-
-    #if (debug_print_count % 10 == 0 ):
-    #    print("\n--- DEBUG: INPUT VS OUTPUT ---")
-    #    print(f"ORIGINAL (Serious):  {original_headlines[0]}")
-    #    print(f"GENERATED (Sarcasm): {clean_completions[0]}")
-    #    print("---------context rewards--------\n")
-    #    print(f"reward: {rewards[0]}\n")
-    #    print("------------------------------\n")
-
-    #debug_print_count += 1
 
     torch.cuda.empty_cache()
 
@@ -202,6 +190,24 @@ def area_man_reward_func(completions, **kwargs):
     """Penalty for shortcut-template outputs such as 'Area Man' (returned as negative reward)."""
     penalties = amr.score(completions)
     return [-p for p in penalties]
+
+
+def frequency_penalty_func(completions, **kwargs):
+    """
+    Adaptive penalty for overused opening n-grams.
+
+    Unlike the other penalties, this one is STATEFUL — it remembers
+    what the model generated in previous steps via a rolling window.
+    Patterns that appear frequently across recent history get a higher
+    penalty, which decays once the model stops using them.
+
+    Returned as negative reward so it is subtracted from the total.
+    """
+    penalties = fp.score(completions)
+    return [-p for p in penalties]
+
+def style_reward_func(prompts, completions, original_text, **kwargs):
+    return sr.score(original_text, completions)
 
 
 def build_dataset():
@@ -333,32 +339,40 @@ def main():
     training_args = GRPOConfig(
             output_dir="./qwen_grpo_rl-ed",
             learning_rate=3e-5,
-            per_device_train_batch_size=4,  # Number of distinct prompts per step
+            per_device_train_batch_size=8,  # Number of distinct prompts per step
             gradient_accumulation_steps=4,
             num_generations=NUM_GENERATIONS,              # G in GRPO: Group size for relative advantage
             #max_prompt_length=128,
             max_completion_length=128,
-            temperature=0.7,
+            temperature=0.8,
             bf16=torch.cuda.is_bf16_supported(),
             fp16=not torch.cuda.is_bf16_supported(),
             logging_steps=50,
-            #max_steps=50000, 
-            num_train_epochs = 1,
-            beta = 0.01,
+            max_steps=5000, 
+            #num_train_epochs = 1,
+            beta = 0.08,
             #report_to="none",
             report_to="wandb",
             save_steps = 2500,
             save_total_limit = 2,
             run_name="qwen-grpo-sarcasm-rl",
-            reward_weights=[1.0,1.0,1.0,1.0,1.0,1.0], 
+            reward_weights=[1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
             multi_objective_aggregation="normalize_then_sum",
             )
 
     print("Initializing GRPO Trainer...")
     trainer = GRPOTrainer(
             model=model,
-            #reward_funcs=[combined_multiplier_func],
-            reward_funcs=[sarcasm_reward_func, gated_context_reward_func, gated_content_reward_func, degeneration_reward_func, diversity_reward_func, area_man_reward_func],
+            reward_funcs=[
+                sarcasm_reward_func,
+                gated_context_reward_func,
+                gated_content_reward_func,
+                degeneration_reward_func,
+                diversity_reward_func,
+                area_man_reward_func,
+                frequency_penalty_func,      # <-- NEW: adaptive frequency penalty
+                style_reward_func,
+            ],
             args=training_args,
             train_dataset=dataset,
             peft_config=peft_config,

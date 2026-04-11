@@ -57,5 +57,12 @@ class RewardConfig:
     area_man_max_penalty: float = 2.0
     area_man_prefix_window: int = 24
 
+    # --- Frequency penalty (adaptive n-gram suppression) ---
+    freq_window_size: int = 1000
+    freq_ngram_range: tuple = (1, 3)
+    freq_prefix_token_count: int = 6
+    freq_penalty_scale: float = 1.5
+    freq_penalty_warmup: int = 64
+
     # --- Device ---
     device: str = field(default_factory=lambda: "cuda" if torch.cuda.is_available() else "cpu")
