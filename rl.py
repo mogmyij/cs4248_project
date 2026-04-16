@@ -339,7 +339,7 @@ def main():
     training_args = GRPOConfig(
             output_dir="./qwen_grpo_rl-ed",
             learning_rate=3e-5,
-            per_device_train_batch_size=8,  # Number of distinct prompts per step
+            per_device_train_batch_size=16,  # Number of distinct prompts per step
             gradient_accumulation_steps=4,
             num_generations=NUM_GENERATIONS,              # G in GRPO: Group size for relative advantage
             #max_prompt_length=128,
@@ -356,7 +356,7 @@ def main():
             save_steps = 2500,
             save_total_limit = 2,
             run_name="qwen-grpo-sarcasm-rl",
-            reward_weights=[1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
+            reward_weights=[1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
             multi_objective_aggregation="normalize_then_sum",
             )
 
@@ -368,8 +368,6 @@ def main():
                 gated_context_reward_func,
                 gated_content_reward_func,
                 degeneration_reward_func,
-                diversity_reward_func,
-                area_man_reward_func,
                 frequency_penalty_func,      # <-- NEW: adaptive frequency penalty
                 style_reward_func,
             ],
@@ -383,7 +381,7 @@ def main():
     trainer.train()
 
     print("Saving the model...")
-    trainer.save_model("./qwen_grpo_finetuned_final")
+    trainer.save_model("./qwen_grpo_demo_final")
     print("Done!")
 
 if __name__ == "__main__":
